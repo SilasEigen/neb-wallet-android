@@ -17,6 +17,8 @@ import java.net.Socket;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Set;
 
 /** The node the wallet asks, and what the phone remembers of it.
@@ -29,6 +31,10 @@ import java.util.Set;
 final class Node {
     /** The public node of the project: balances and payments, no other call. */
     static final String PUBLIC = "https://rpc.neuralenginebyte.org";
+    /** The id of the main network: the hash of its first block. */
+    static final String MAINNET = "da2f5af7bb4c5e2bcc8d558b2f4f01d4c88557a943e6cff9cd035638fe9439ae";
+    private static final Set<String> CALLS = new HashSet<>(Arrays.asList("getblockcount", "getblockhash", "getblock",
+            "getutxos", "sendrawtransaction"));
     /** A JSON-RPC call of the wallet is small; a larger request is not passed on. */
     private static final int MAX_REQUEST = 65536, MAX_ANSWER = 8 << 20, PAGE = 1000, MAX_COINS = 100000;
 
@@ -102,6 +108,8 @@ final class Node {
     }
 
     private static String answer(String method, JSONArray params) throws Exception {
+        // Any program on the phone can reach this port: it serves the calls of the wallet and no other.
+        if (!CALLS.contains(method)) throw new Exception("the wallet does not make this call");
         if (method.equals("getutxos")) {
             // The first call gets every coin of the lock at once; the call for a next page gets none.
             JSONArray coins = params.length() > 2 ? new JSONArray() : coins(params.getString(0));
@@ -111,13 +119,19 @@ final class Node {
         String key = method + params;
         try {
             String answer = call(method, params);
+            boolean genesis = method.equals("getblockhash") && params.optLong(0, -1) == 0;
+            if (genesis && PUBLIC.equals(target) && !MAINNET.equals(new JSONObject(answer).optString("result"))) {
+                // a payment is signed for this id: the public node must be the main network
+                throw new Exception("the public node is not on the main network");
+            }
             if (new JSONObject(answer).isNull("error")) remember(key, answer);
             offline = false;
             // The id of the chain is what a payment is signed for: it is asked once, while there is internet.
             JSONArray first = new JSONArray().put(0);
             if (recall("getblockhash" + first) == null) {
-                String genesis = call("getblockhash", first);
-                if (new JSONObject(genesis).isNull("error")) remember("getblockhash" + first, genesis);
+                String id = call("getblockhash", first);
+                boolean right = !PUBLIC.equals(target) || MAINNET.equals(new JSONObject(id).optString("result"));
+                if (right && new JSONObject(id).isNull("error")) remember("getblockhash" + first, id);
             }
             return answer;
         } catch (IOException e) {

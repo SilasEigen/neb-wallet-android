@@ -2,7 +2,7 @@
 
 An Android wallet for [NEB](https://github.com/SilasEigen/neb). The keys, coin selection and signing belong to the NEB node's `neb-wallet` program, built for Android and packaged in the app. The app adds the screens, a store for what the phone knows about the chain, and a Bluetooth link between two phones.
 
-Status: early. It has run on phones with Android 10 and Android 15, and one phone has paid the other over Bluetooth. The package is signed with a debug key, so it is a test build.
+Status: early. It has run on phones with Android 10 and Android 15, and one phone has paid the other over Bluetooth.
 
 ## What it does
 
@@ -25,6 +25,17 @@ A payment you receive offline is a signed promise until it is in a block: the pa
 
 The link is Bluetooth Low Energy with no pairing. It carries an address and a signed transaction, both public. Nothing authenticates the link, so check the address on both screens before you pay.
 
+## Verifying a download
+
+Each release has a `SHA256SUMS` file signed with the NEB release key, the one that signs the node releases (fingerprint `EBF3 A9A0 37BC D121 0464 2A30 D7FC 5241 9E25 BBC4`):
+
+```
+gpg --verify SHA256SUMS.asc SHA256SUMS
+sha256sum -c SHA256SUMS
+```
+
+Android asks you to allow installs from your browser or file manager, because the package does not come from a store. An update installs over the previous version and keeps the key.
+
 ## The node
 
 The wallet reads the chain from a NEB node over JSON-RPC. By default it asks the project's public node over HTTPS. That node only reports balances and relays signed payments: the key never leaves the phone. Its operator can see which IP address asks about which NEB address.
@@ -46,7 +57,7 @@ app/build-apk.sh
 
 `build.sh` fetches the NEB sources at the tag named in the script and applies `patches/neb-wallet-commands.patch`, which adds four commands to `neb-wallet`: `sign`, `submit`, `received` and `export`. It builds the program for phones and for the emulator, with source paths mapped to fixed prefixes, so the binaries do not carry the paths of the machine that built them. Set `NEB_REPO` to build from a local clone.
 
-`app/build-apk.sh` compiles the Java sources and writes `neb-wallet.apk`, signed with the Android SDK's debug key.
+`app/build-apk.sh` compiles the Java sources and writes `neb-wallet.apk`. It signs with the Android SDK's debug key, or with your own key store when `NEB_APK_KEYSTORE` names it and `NEB_APK_KEYSTORE_PASS` names a file that holds its password.
 
 The app runs on Android 10 or later.
 

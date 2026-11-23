@@ -1,6 +1,6 @@
 #!/bin/bash
 # Builds neb-wallet.apk without Gradle: aapt2, javac, d8, zipalign and apksigner from the Android SDK, and a JDK.
-# Run ../build.sh first. The package is signed with the debug key of the Android SDK: a test build, not a release.
+# Run ../build.sh first.
 set -euo pipefail
 unset MSYS_NO_PATHCONV  # Git Bash must convert the paths given to the Windows tools
 cd "$(dirname "$0")"
@@ -22,6 +22,14 @@ javac -encoding UTF-8 --release 11 -cp "$jar" -d build/classes java/org/neuralen
 "$bt/d8$bat" --lib "$jar" --min-api 29 --output build/apk $(find build/classes -name '*.class')
 (cd build/apk && "$bt/aapt" add ../base.apk classes.dex lib/*/*.so >/dev/null)
 "$bt/zipalign" -f -p 4 build/base.apk build/aligned.apk
-"$bt/apksigner$bat" sign --ks "$HOME/.android/debug.keystore" --ks-pass pass:android --out ../neb-wallet.apk build/aligned.apk
+# The signing key: the key store named by NEB_APK_KEYSTORE, with its password in the file named by
+# NEB_APK_KEYSTORE_PASS. Without them, the debug key of the Android SDK: a test build.
+native() { if command -v cygpath >/dev/null 2>&1; then cygpath -w "$1"; else printf '%s' "$1"; fi; }
+if [ -n "${NEB_APK_KEYSTORE:-}" ]; then
+  key=(--ks "$(native "$NEB_APK_KEYSTORE")" --ks-pass "file:$(native "${NEB_APK_KEYSTORE_PASS:?set NEB_APK_KEYSTORE_PASS}")")
+else
+  key=(--ks "$(native "$HOME/.android/debug.keystore")" --ks-pass pass:android)
+fi
+"$bt/apksigner$bat" sign "${key[@]}" --out ../neb-wallet.apk build/aligned.apk
 rm -rf build
 ls -l ../neb-wallet.apk

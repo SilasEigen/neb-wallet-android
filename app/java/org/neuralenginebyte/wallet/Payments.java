@@ -19,15 +19,18 @@ import java.util.regex.Pattern;
  *  internet: the first one that does puts it on the chain. Until it is in a block a payment received with no
  *  internet is a signed promise, because the coins it spends could have been spent elsewhere. */
 final class Payments {
-    private static final String PROMISE = "Until it is in a block it is a signed promise: the coins it spends could "
-            + "have been spent elsewhere.";
+    private static final String PROMISE = "This is not a payment yet. Nothing proves that the coins it spends exist "
+            + "or are still unspent: only a block does. Wait until it shows in your balance before you count on it.";
+    /** True while a payment that arrived is being read: another one waits for the next try of its sender. */
+    private static boolean reading;
 
     private Payments() { }
 
     /** A signed payment arrived by Bluetooth. */
     static void arrived(MainActivity a, byte[] payment) {
         String pw = a.password, hex = Wallet.hex(payment);
-        if (pw == null) return;
+        if (pw == null || reading) return;
+        reading = true;
         a.work(() -> {
             String out = Wallet.run(a, pw, "--wallet", a.walletFile.getPath(), "received", hex);
             String amount = MainActivity.group(out, "received ([0-9.]+) NEB");
@@ -37,12 +40,17 @@ final class Payments {
                         + "kept.");
             }
             Pending.add(txid, hex, false, amount, "", new ArrayList<>());
-            return "It pays this wallet " + amount + " NEB.\n\n" + push(a, pw, txid, hex) + "\n\n" + PROMISE;
+            return "A signed payment of " + amount + " NEB to this wallet arrived.\n\n" + push(a, pw, txid, hex)
+                    + "\n\n" + PROMISE;
         }, text -> {
-            new AlertDialog.Builder(a).setTitle("Payment by Bluetooth").setMessage(text).setPositiveButton("OK", null)
+            reading = false;
+            new AlertDialog.Builder(a).setTitle("Received by Bluetooth, not confirmed").setMessage(text).setPositiveButton("OK", null)
                     .show();
             a.refresh();
-        }, a::error);
+        }, e -> {
+            reading = false;
+            a.error(e);
+        });
     }
 
     /** Signs a payment to `address`, keeps it, hands it to the phone found by Bluetooth, then gives it to the

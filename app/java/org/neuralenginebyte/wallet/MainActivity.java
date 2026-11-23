@@ -16,6 +16,7 @@ import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.PersistableBundle;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
@@ -301,7 +302,14 @@ public class MainActivity extends Activity {
     }
 
     void copy(String label, String value) {
-        getSystemService(ClipboardManager.class).setPrimaryClip(ClipData.newPlainText(label, value));
+        ClipData clip = ClipData.newPlainText(label, value);
+        if (label.equals("NEB key")) {
+            // a secret: the system keeps it out of the clipboard preview
+            PersistableBundle extras = new PersistableBundle();
+            extras.putBoolean("android.content.extra.IS_SENSITIVE", true);
+            clip.getDescription().setExtras(extras);
+        }
+        getSystemService(ClipboardManager.class).setPrimaryClip(clip);
     }
 
     // First start and unlock.
