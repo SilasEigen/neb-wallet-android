@@ -1,0 +1,5 @@
+bin/
+build/
+*.apk
+*.idsig
+app/build/

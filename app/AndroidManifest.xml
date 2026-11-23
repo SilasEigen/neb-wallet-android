@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="org.neuralenginebyte.wallet" android:versionCode="6" android:versionName="0.1.0">
+    <uses-sdk android:minSdkVersion="29" android:targetSdkVersion="35" />
+    <!-- INTERNET: the wallet asks a node for the balance and gives it the payments, over JSON-RPC. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- To give the kept payments to the network as soon as the internet is back. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Bluetooth: a payment between two phones. The search is never used to find where the phone is. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+    <!-- Before Android 12 the same uses go by these names, and a search for Bluetooth devices needs the location
+         permission, with the location setting of the phone on. The wallet reads no position. -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
+    <!-- allowBackup is off: the wallet key file must never be copied to a cloud backup.
+         usesCleartextTraffic: a node of the user is reached over plain HTTP; the public node is over HTTPS. -->
+    <application android:label="NEB Wallet" android:icon="@mipmap/ic" android:extractNativeLibs="true"
+        android:allowBackup="false" android:usesCleartextTraffic="true">
+        <activity android:name="org.neuralenginebyte.wallet.MainActivity" android:exported="true"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

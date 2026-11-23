@@ -1,0 +1,81 @@
+--- a/node/crates/neb-wallet/src/main.rs
++++ b/node/crates/neb-wallet/src/main.rs
+@@ -6,6 +6,7 @@
+ 
+ use std::path::{Path, PathBuf};
+ 
++use neb_chain::Transaction;
+ use neb_wallet::display::{Look, Row};
+ use neb_wallet::wallet::WalletKey;
+ use neb_wallet::{ADDRESS_PREFIX, Wallet, decode_address, format_amount, parse_amount, pay, scan};
+@@ -196,7 +197,37 @@
+             print!("{}", Look::detect().balance(scan.tip_height, &rows, &format_amount(scan.mature_balance())));
+             Ok(())
+         }
+-        "send" => {
++        "export" => {
++            let wallet = open(&wallet_path)?;
++            for key in &wallet.keys {
++                println!("{}", key.secret_hex());
++            }
++            Ok(())
++        }
++        "submit" => {
++            let text = args.get(i + 1).ok_or("submit needs a signed transaction in hex")?;
++            let tx = Transaction::decode(&decode_hex(text).ok_or("the transaction is not hex")?)?;
++            let client = neb_wallet::RpcClient::new(rpc_url.clone())?;
++            println!("txid     {}", client.send_raw_transaction(&hex(&tx.encode()))?);
++            Ok(())
++        }
++        "received" => {
++            let text = args.get(i + 1).ok_or("received needs a signed transaction in hex")?;
++            let tx = Transaction::decode(&decode_hex(text).ok_or("the transaction is not hex")?)?;
++            let wallet = open(&wallet_path)?;
++            // The amounts are read from the transaction. Whether its inputs exist and are unspent is
++            // decided by the node, when the transaction is submitted.
++            let mut total = 0u64;
++            for output in &tx.outputs {
++                if wallet.key_for_output(output.lock_type, &output.lock_data).is_some() {
++                    total = total.checked_add(output.amount).ok_or("the amounts overflow")?;
++                }
++            }
++            println!("received {} NEB", format_amount(total));
++            println!("txid     {}", hex(&tx.txid()));
++            Ok(())
++        }
++        "send" | "sign" => {
+             // one or several pairs: ADDRESS AMOUNT [ADDRESS AMOUNT ...], all paid by one transaction
+             let pairs = &args[(i + 1).min(args.len())..];
+             if pairs.is_empty() || !pairs.len().is_multiple_of(2) {
+@@ -220,7 +251,16 @@
+             let chain_id = decode_hex32(&chain_id_text).ok_or("bad genesis hash")?;
+             let (tx, selection) =
+                 pay(&wallet, &scan.mature(), &payments, &chain_id, change).map_err(|e| e.to_string())?;
+-            let txid = client.send_raw_transaction(&hex(&tx.encode()))?;
++            let txid = if command == "sign" {
++                println!("signed   {}", hex(&tx.encode()));
++                // the outputs it spends: a caller that keeps the payment for later must not select them again
++                for input in &selection.inputs {
++                    println!("spends   {}:{}", hex(&input.outpoint.txid), input.outpoint.index);
++                }
++                hex(&tx.txid())
++            } else {
++                client.send_raw_transaction(&hex(&tx.encode()))?
++            };
+             println!("outputs  {}", payments.len());
+             println!("inputs   {}", selection.inputs.len());
+             println!("change   {} NEB", format_amount(selection.change));
+@@ -240,6 +280,13 @@
+     bytes.iter().map(|b| format!("{b:02x}")).collect()
+ }
+ 
++fn decode_hex(text: &str) -> Option<Vec<u8>> {
++    if !text.len().is_multiple_of(2) || !text.is_ascii() {
++        return None;
++    }
++    (0..text.len() / 2).map(|i| u8::from_str_radix(&text[2 * i..2 * i + 2], 16).ok()).collect()
++}
++
+ fn decode_hex32(text: &str) -> Option<[u8; 32]> {
+     if text.len() != 64 {
+         return None;
